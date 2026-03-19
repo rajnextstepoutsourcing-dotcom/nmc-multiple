@@ -1,0 +1,38 @@
+services:
+  - type: web
+    name: nmc-live
+    env: python
+    plan: standard
+    buildCommand: pip install -r requirements.txt && playwright install --with-deps chromium
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: TWOCAPTCHA_API_KEY
+        sync: false
+      - key: GEMINI_MODEL_FAST
+        value: gemini-2.0-flash
+      - key: GEMINI_MODEL_STRONG
+        value: gemini-2.5-pro
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: NEXTSTEP_INTERNAL_TOKEN
+        sync: false
+
+  - type: worker
+    name: nmc-worker
+    env: python
+    plan: standard
+    buildCommand: pip install -r requirements.txt && playwright install --with-deps chromium
+    startCommand: python worker.py
+    envVars:
+      - key: TWOCAPTCHA_API_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: NEXTSTEP_INTERNAL_TOKEN
+        sync: false

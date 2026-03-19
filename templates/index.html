@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>NMC Register Check — NextStep</title>
+  <link rel="stylesheet" href="/static/styles.css"/>
+</head>
+<body>
+  <div class="container">
+    <div class="topBar">
+      <div class="topBar-brand">
+        <span class="brand-icon">⚡</span>
+        <span class="brand-name">Next<span>Step</span></span>
+        <span class="brand-sep">|</span>
+        <span class="brand-tool">NMC Register Check</span>
+      </div>
+      <a href="https://nextstep.co.uk/dashboard" class="btn-back">← Dashboard</a>
+    </div>
+
+    <!-- Auth warning (shown if not logged in) -->
+    <div id="authWarning" class="auth-warning hidden">
+      <span>⚠</span>
+      <span>You must be logged in to use this tool. <a href="https://nextstep.co.uk/login">Log in here</a></span>
+    </div>
+
+    <!-- Token balance -->
+    <div id="tokenBar" class="token-bar hidden">
+      <span class="token-label">🪙 Tokens remaining:</span>
+      <span id="tokenCount" class="token-count">—</span>
+    </div>
+
+    <p class="muted">Upload NMC documents or CSV/Excel → Extract PINs → Run checks → Download PDFs.</p>
+
+    <section class="card">
+      <h2>Step 1 — Upload documents</h2>
+      <div id="dropZone" class="dropZone">
+        <div class="dzIcon">⬆</div>
+        <div class="dzTitle">Upload NMC Documents</div>
+        <div class="dzSub">Drop files here <span class="muted">or</span> click to upload</div>
+        <div class="dzMeta">PDF / JPG / PNG / CSV / XLSX — Max 100 files</div>
+      </div>
+      <div class="muted small">Supported: PDF, JPG/PNG (PIN extracted automatically), CSV/XLSX (PIN column auto-detected). Max 100 rows per run.</div>
+      <div id="bulkChips" class="chips"></div>
+      <input id="files" type="file" accept="application/pdf,image/*,.csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" multiple class="hiddenFile"/>
+      <div class="row btnRow">
+        <button id="btnAddMore" type="button">Add more files</button>
+        <button id="btnClearAll" type="button" class="danger">Clear all</button>
+      </div>
+      <div class="row actionBar actionBarTop">
+        <button id="btnExtractBulk">Extract all</button>
+        <span id="bulkCount" class="pill"></span>
+        <span id="bulkRowCount" class="pill"></span>
+        <span id="extractBulkStatus" class="muted"></span>
+      </div>
+      <div class="divider"></div>
+      <h3>Extracted list (editable)</h3>
+      <div id="bulkHeader" class="bulkHeader" aria-hidden="true">
+        <div class="bulkHeaderLeft"><span>Remove</span><span>#</span></div>
+        <div class="bulkHeaderMain"><span>Source</span><span>NMC PIN</span><span>Name</span><span>Expiry Date</span></div>
+        <div class="bulkHeaderRight"><span>Status</span><span>Output</span></div>
+      </div>
+      <div id="bulkList" class="bulkList"></div>
+      <div class="row actionBar actionBarBottom">
+        <button id="btnRunBulk" class="primary">Run All Checks</button>
+        <button id="btnRerun" class="btn-rerun hidden" type="button">↺ Rerun Edited Rows</button>
+        <a id="btnDlZip" class="btnLink zipBtn disabledLink" href="#" download>⬇ Download All PDFs (ZIP)</a>
+        <button id="btnDlResultsXlsx" type="button" class="ghost">Download Results Excel</button>
+        <button id="btnDlResultsCsv" type="button" class="ghost">Download Results CSV</button>
+        <span id="runBulkStatus" class="muted"></span>
+        <div id="zipNotice" class="muted"></div>
+      </div>
+
+      <!-- Progress bar -->
+      <div id="progressWrap" class="progress-wrap hidden">
+        <div class="progress-header">
+          <span id="progressBadge" class="badge running">⏳ Processing</span>
+          <span id="progressCount" class="progress-count">0 of 0 complete</span>
+        </div>
+        <div class="progress-bar-outer">
+          <div id="progressBar" class="progress-bar-inner" style="width:0%"></div>
+        </div>
+        <div id="progressMsg" class="muted small" style="margin-top:6px;"></div>
+      </div>
+    </section>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
