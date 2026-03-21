@@ -1,3 +1,4 @@
+import os
 """
 app.py — NMC Check Service (NextStep SaaS)
 """
@@ -29,6 +30,9 @@ NMC_QUEUE     = "nextstep:nmc:jobs"
 STORAGE_ROOT  = Path("/tmp/nextstep")
 STORAGE_ROOT.mkdir(parents=True, exist_ok=True)
 BACKEND_VALIDATE_URL = os.environ.get("BACKEND_VALIDATE_URL", "https://nextstep-backend-e75l.onrender.com/api/validate-session")
+
+APP_DASHBOARD_URL = os.environ.get('APP_DASHBOARD_URL','https://nextstep-backend-e75l.onrender.com/dashboard')
+APP_LOGIN_URL = os.environ.get('APP_LOGIN_URL','https://nextstep-backend-e75l.onrender.com/login')
 
 app = FastAPI(title="NMC Check — NextStep")
 app.mount("/static", StaticFiles(directory=os.path.join(APP_DIR, "static")), name="static")
@@ -125,7 +129,7 @@ def _get_ctx(request: Request):
 def _auth(request: Request):
     ctx = _get_ctx(request)
     if not ctx:
-        raise HTTPException(401, "Not authenticated. Please log in at nextstep.co.uk")
+        raise HTTPException(401, "Not authenticated. Please log in at nextstep-backend-e75l.onrender.com")
     return ctx
 
 # ── Storage ───────────────────────────────────────────────────────────────────
@@ -495,3 +499,24 @@ async def nmc_rerun(request: Request):
         "rows": merged_rows,
         "queued": enqueued,
     })
+
+
+from fastapi.responses import HTMLResponse
+
+@app.get("/", response_class=HTMLResponse)
+async def home(request: Request):
+    response = templates.TemplateResponse("index.html", {
+        "request": request,
+        "dashboard_url": APP_DASHBOARD_URL
+    })
+    token = request.query_params.get("ns_token")
+    if token:
+        response.set_cookie(
+            key="ns_token",
+            value=token,
+            httponly=True,
+            samesite="lax",
+            secure=True,
+            max_age=60*60*8
+        )
+    return response
