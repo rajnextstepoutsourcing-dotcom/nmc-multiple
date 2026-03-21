@@ -160,7 +160,7 @@ def _storage(tenant_id, user_id, job_id):
 # ── Routes ────────────────────────────────────────────────────────────────────
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse("index.html", {"request": request, "dashboard_url": APP_DASHBOARD_URL, "login_url": APP_LOGIN_URL})
 
 @app.get("/health")
 def health():
