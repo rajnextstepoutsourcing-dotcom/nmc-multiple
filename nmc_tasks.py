@@ -81,11 +81,21 @@ def process_nmc_job(job_data: Dict[str, Any]) -> Dict[str, Any]:
     log.info("[Task] Job %s started — %d items tenant=%s user=%s",
              job_id, len(items), tenant_id, user_id)
 
-    # Update Redis job state
+    # Update Redis job state and central DB state
     _update_redis_state(job_id, {
         "state": "running",
         "message": "Processing checks...",
     })
+    if db_job_id:
+        try:
+            db.update_job_status(
+                db_job_id=db_job_id,
+                status="running",
+                successful_items=0,
+                failed_items=0,
+            )
+        except Exception as e:
+            log.warning("[Task] Failed to mark DB job running: %s", e)
 
     checked_date = _uk_now_str()
     pdf_names: List[str] = []

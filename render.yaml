@@ -20,19 +20,13 @@ services:
         sync: false
       - key: NEXTSTEP_INTERNAL_TOKEN
         sync: false
-
-  - type: worker
-    name: nmc-worker
-    env: python
-    plan: standard
-    buildCommand: pip install -r requirements.txt && playwright install --with-deps chromium
-    startCommand: python worker.py
-    envVars:
-      - key: TWOCAPTCHA_API_KEY
+      - key: BACKEND_VALIDATE_URL
         sync: false
-      - key: DATABASE_URL
+      - key: APP_DASHBOARD_URL
         sync: false
-      - key: REDIS_URL
+      - key: APP_LOGIN_URL
         sync: false
-      - key: NEXTSTEP_INTERNAL_TOKEN
-        sync: false
+      - key: MAX_CONCURRENT_JOBS
+        value: "3"
+      - key: NMC_ENABLE_EMBEDDED_WORKER
+        value: "true"
