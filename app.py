@@ -34,7 +34,26 @@ BACKEND_VALIDATE_URL = os.environ.get("BACKEND_VALIDATE_URL", "https://nextstep-
 APP_DASHBOARD_URL = os.environ.get('APP_DASHBOARD_URL','https://nextstep-backend-e75l.onrender.com/dashboard')
 APP_LOGIN_URL = os.environ.get('APP_LOGIN_URL','https://nextstep-backend-e75l.onrender.com/login')
 
+
+from starlette.middleware.base import BaseHTTPMiddleware
+
+class PersistNextStepTokenMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        token = request.query_params.get("ns_token")
+        if token:
+            response.set_cookie(
+                key="ns_token",
+                value=token,
+                httponly=True,
+                samesite="lax",
+                secure=True,
+                max_age=60 * 60 * 8,
+            )
+        return response
+
 app = FastAPI(title="NMC Check — NextStep")
+app.add_middleware(PersistNextStepTokenMiddleware)
 app.mount("/static", StaticFiles(directory=os.path.join(APP_DIR, "static")), name="static")
 templates = Jinja2Templates(directory=os.path.join(APP_DIR, "templates"))
 
@@ -129,7 +148,7 @@ def _get_ctx(request: Request):
 def _auth(request: Request):
     ctx = _get_ctx(request)
     if not ctx:
-        raise HTTPException(401, "Not authenticated. Please log in at nextstep-backend-e75l.onrender.com")
+        raise HTTPException(401, "f"Not authenticated. Please log in at {APP_LOGIN_URL}"")
     return ctx
 
 # ── Storage ───────────────────────────────────────────────────────────────────
