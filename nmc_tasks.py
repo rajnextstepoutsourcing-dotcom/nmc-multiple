@@ -133,10 +133,11 @@ def _finalize_parent_if_complete(job_id: str):
             db.update_job_status(db_job_id=db_job_id, status="completed" if successful > 0 else "failed", successful_items=successful, failed_items=failed)
         except Exception as e:
             log.warning("[Task] DB final update failed: %s", e)
-    if successful > 0 and tenant_id:
+    billable_successes = sum(1 for r in rows if r.get("status") == "done" and r.get("billable") and r.get("attempt_in_current_job"))
+    if billable_successes > 0 and tenant_id:
         try:
             import db
-            db.record_usage(tenant_id=tenant_id, user_id=user_id, db_job_id=db_job_id, successful_outputs=successful)
+            db.record_usage(tenant_id=tenant_id, user_id=user_id, db_job_id=db_job_id, successful_outputs=billable_successes)
         except Exception as e:
             log.warning("[Task] record_usage failed: %s", e)
     if storage_path:
@@ -204,7 +205,7 @@ def process_nmc_child(job_data: Dict[str, Any]) -> Dict[str, Any]:
                 final_name = final_path.name
 
             def mark_done(row: dict):
-                row.update({"status": "done", "pdf_filename": final_name, "pdf_url": f"/nmc/download/{job_id}/{final_name}", "name": name, "expiry_date": expiry_date, "status_text": status_text, "error": ""})
+                row.update({"status": "done", "pdf_filename": final_name, "pdf_url": f"/nmc/download/{job_id}/{final_name}", "name": name, "expiry_date": expiry_date, "status_text": status_text, "error": "", "billable": True})
             _update_row(job_id, row_number, mark_done)
             job_data["status"] = "done"
             _cset(child_id, job_data)

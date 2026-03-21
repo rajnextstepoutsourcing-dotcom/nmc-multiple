@@ -224,6 +224,56 @@ def record_usage(
 
 
 # ── Validate internal token ───────────────────────────────────────────────────
+
+
+def adjust_usage(
+    *,
+    tenant_id: int,
+    user_id: int,
+    db_job_id: Optional[int],
+    delta_outputs: int,
+) -> None:
+    """Adjusts token usage up or down. Negative deltas reverse prior billable usage."""
+    if delta_outputs == 0:
+        return
+    session = get_session()
+    if not session:
+        return
+    try:
+        tool_id = get_nmc_tool_id()
+        session.execute(
+            text("""
+                INSERT INTO usage_records
+                    (tenant_id, user_id, tool_id, job_id, billable_output_count, created_at)
+                VALUES
+                    (:tenant_id, :user_id, :tool_id, :job_id, :count, :now)
+            """),
+            {
+                "tenant_id": tenant_id,
+                "user_id": user_id,
+                "tool_id": tool_id,
+                "job_id": db_job_id,
+                "count": delta_outputs,
+                "now": datetime.utcnow(),
+            }
+        )
+        session.execute(
+            text("""
+                UPDATE tenants
+                SET tokens_used = GREATEST(tokens_used + :count, 0)
+                WHERE id = :tenant_id
+            """),
+            {"count": delta_outputs, "tenant_id": tenant_id}
+        )
+        session.commit()
+        log.info("[DB] Adjusted %d token(s) for tenant %d", delta_outputs, tenant_id)
+    except Exception as e:
+        log.error("[DB] adjust_usage error: %s", e)
+        session.rollback()
+    finally:
+        session.close()
+
+
 def validate_user_token(token: str) -> Optional[dict]:
     """
     Validates the NextStep session token passed from the main dashboard.

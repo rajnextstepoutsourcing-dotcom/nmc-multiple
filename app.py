@@ -418,7 +418,7 @@ def _create_parent_job(tenant_id: int, user_id: int, items: List[dict], db_job_i
         raise HTTPException(500, "Redis unavailable.")
     job_id = str(uuid.uuid4())
     if reuse_rows is None:
-        rows = [{"row": i + 1, "status": "queued", "nmc_pin": (it.get("nmc_pin") or ""), "original_filename": (it.get("original_filename") or f"Row {i+1}"), "name": "", "expiry_date": "", "status_text": "", "pdf_filename": "", "pdf_url": "", "error": ""} for i, it in enumerate(items)]
+        rows = [{"row": i + 1, "status": "queued", "nmc_pin": (it.get("nmc_pin") or ""), "original_filename": (it.get("original_filename") or f"Row {i+1}"), "name": "", "expiry_date": "", "status_text": "", "pdf_filename": "", "pdf_url": "", "error": "", "attempt_in_current_job": True, "billable": False} for i, it in enumerate(items)]
     else:
         rows = reuse_rows
 
@@ -673,19 +673,27 @@ async def nmc_rerun(request: Request):
     except Exception as e:
         log.warning("[Rerun] Token check skipped: %s", e)
     db_job_id = None
+    dirty_map = {int(it.get("row_number") or 0): it for it in dirty_items}
     try:
         import db
+        previously_billable = 0
+        for r0 in old_rows:
+            row_no = int(r0.get("row") or 0)
+            if row_no in dirty_map and (r0.get("billable") or r0.get("pdf_url")):
+                previously_billable += 1
+        if previously_billable > 0:
+            db.adjust_usage(tenant_id=tenant_id, user_id=user_id, db_job_id=None, delta_outputs=-previously_billable)
         db_job_id = db.create_job_record(tenant_id=tenant_id, user_id=user_id, total_items=len(dirty_items))
     except Exception as e:
-        log.warning("[Rerun] DB record failed: %s", e)
-    dirty_map = {int(it.get("row_number") or 0): it for it in dirty_items}
+        log.warning("[Rerun] DB record/reversal failed: %s", e)
     merged_rows = []
     for r0 in old_rows:
         row_no = int(r0.get("row") or 0)
         if row_no in dirty_map:
-            merged_rows.append({**r0, "status": "queued", "nmc_pin": (dirty_map[row_no].get("nmc_pin") or "").strip().upper(), "pdf_filename": "", "pdf_url": "", "error": "", "name": "", "expiry_date": "", "status_text": ""})
+            prev_billable = bool(r0.get("billable") or r0.get("pdf_url"))
+            merged_rows.append({**r0, "status": "queued", "nmc_pin": (dirty_map[row_no].get("nmc_pin") or "").strip().upper(), "pdf_filename": "", "pdf_url": "", "error": "", "name": "", "expiry_date": "", "status_text": "", "attempt_in_current_job": True, "billable": False, "waived_previous_charge": prev_billable})
         else:
-            merged_rows.append(r0)
+            merged_rows.append({**r0, "attempt_in_current_job": False})
     job_id, rows = _create_parent_job(tenant_id, user_id, dirty_items, db_job_id, storage_path, reuse_rows=merged_rows, old_job_id=old_job_id)
     _enqueue_child_tasks(job_id, tenant_id, user_id, storage_path, dirty_items)
     return JSONResponse({"job_id": job_id, "status_url": f"/nmc/status/{job_id}", "rows": rows, "queued": True})
