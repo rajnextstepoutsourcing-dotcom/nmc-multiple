@@ -13,7 +13,10 @@ from sqlalchemy.orm import sessionmaker, Session
 
 log = logging.getLogger(__name__)
 
+# ── Database connection ───────────────────────────────────────────────────────
 _DATABASE_URL = os.environ.get("DATABASE_URL", "")
+
+# Fix Render postgres:// → postgresql://
 if _DATABASE_URL.startswith("postgres://"):
     _DATABASE_URL = _DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
@@ -44,6 +47,8 @@ def get_session() -> Optional[Session]:
         _SessionLocal = sessionmaker(bind=engine)
     return _SessionLocal()
 
+
+# ── Tool ID cache ─────────────────────────────────────────────────────────────
 _TOOL_ID: Optional[int] = None
 
 def get_nmc_tool_id() -> Optional[int]:
@@ -67,6 +72,7 @@ def get_nmc_tool_id() -> Optional[int]:
         session.close()
 
 
+# ── Tenant token check ────────────────────────────────────────────────────────
 def get_tenant_tokens_remaining(tenant_id: int) -> int:
     """Returns how many tokens the tenant has remaining. -1 if DB unavailable."""
     session = get_session()
@@ -87,8 +93,14 @@ def get_tenant_tokens_remaining(tenant_id: int) -> int:
         session.close()
 
 
-def create_job_record(*, tenant_id: int, user_id: int, total_items: int) -> Optional[int]:
-    """Creates a queued job record in the central DB. Returns job_id or None."""
+# ── Create job record ─────────────────────────────────────────────────────────
+def create_job_record(
+    *,
+    tenant_id: int,
+    user_id: int,
+    total_items: int,
+) -> Optional[int]:
+    """Creates a job record in the central DB. Returns job_id or None."""
     session = get_session()
     if not session:
         return None
@@ -96,13 +108,9 @@ def create_job_record(*, tenant_id: int, user_id: int, total_items: int) -> Opti
         tool_id = get_nmc_tool_id()
         result = session.execute(
             text("""
-                INSERT INTO jobs (
-                    tenant_id, user_id, tool_id, status, total_items,
-                    successful_items, failed_items, created_at, completed_at
-                )
-                VALUES (
-                    :tenant_id, :user_id, :tool_id, 'queued', :total_items, 0, 0, :now, NULL
-                )
+                INSERT INTO jobs (tenant_id, user_id, tool_id, status, total_items,
+                                  successful_items, failed_items, created_at)
+                VALUES (:tenant_id, :user_id, :tool_id, 'queued', :total_items, 0, 0, :now)
                 RETURNING id
             """),
             {
@@ -113,8 +121,8 @@ def create_job_record(*, tenant_id: int, user_id: int, total_items: int) -> Opti
                 "now": datetime.utcnow(),
             }
         )
-        row = result.fetchone()
         session.commit()
+        row = result.fetchone()
         return row[0] if row else None
     except Exception as e:
         log.error("[DB] create_job_record error: %s", e)
@@ -124,7 +132,14 @@ def create_job_record(*, tenant_id: int, user_id: int, total_items: int) -> Opti
         session.close()
 
 
-def update_job_status(*, db_job_id: int, status: str, successful_items: int, failed_items: int) -> None:
+# ── Update job status ─────────────────────────────────────────────────────────
+def update_job_status(
+    *,
+    db_job_id: int,
+    status: str,
+    successful_items: int,
+    failed_items: int,
+) -> None:
     session = get_session()
     if not session:
         return
@@ -135,17 +150,14 @@ def update_job_status(*, db_job_id: int, status: str, successful_items: int, fai
                 SET status = :status,
                     successful_items = :successful,
                     failed_items = :failed,
-                    completed_at = CASE
-                        WHEN :status IN ('completed', 'failed') THEN :now
-                        ELSE completed_at
-                    END
+                    completed_at = :now
                 WHERE id = :job_id
             """),
             {
                 "status": status,
                 "successful": successful_items,
                 "failed": failed_items,
-                "now": datetime.utcnow(),
+                "now": datetime.utcnow() if status in ("completed", "failed") else None,
                 "job_id": db_job_id,
             }
         )
@@ -157,7 +169,15 @@ def update_job_status(*, db_job_id: int, status: str, successful_items: int, fai
         session.close()
 
 
-def record_usage(*, tenant_id: int, user_id: int, db_job_id: Optional[int], successful_outputs: int) -> None:
+# ── Record usage (deduct tokens) ──────────────────────────────────────────────
+def record_usage(
+    *,
+    tenant_id: int,
+    user_id: int,
+    db_job_id: Optional[int],
+    successful_outputs: int,
+) -> None:
+    """Records token usage and deducts from tenant balance."""
     if successful_outputs <= 0:
         return
     session = get_session()
@@ -165,6 +185,8 @@ def record_usage(*, tenant_id: int, user_id: int, db_job_id: Optional[int], succ
         return
     try:
         tool_id = get_nmc_tool_id()
+
+        # Insert usage record
         session.execute(
             text("""
                 INSERT INTO usage_records
@@ -181,6 +203,8 @@ def record_usage(*, tenant_id: int, user_id: int, db_job_id: Optional[int], succ
                 "now": datetime.utcnow(),
             }
         )
+
+        # Deduct tokens from tenant
         session.execute(
             text("""
                 UPDATE tenants
@@ -189,6 +213,7 @@ def record_usage(*, tenant_id: int, user_id: int, db_job_id: Optional[int], succ
             """),
             {"count": successful_outputs, "tenant_id": tenant_id}
         )
+
         session.commit()
         log.info("[DB] Recorded %d token(s) for tenant %d", successful_outputs, tenant_id)
     except Exception as e:
@@ -198,7 +223,12 @@ def record_usage(*, tenant_id: int, user_id: int, db_job_id: Optional[int], succ
         session.close()
 
 
+# ── Validate internal token ───────────────────────────────────────────────────
 def validate_user_token(token: str) -> Optional[dict]:
+    """
+    Validates the NextStep session token passed from the main dashboard.
+    Returns dict with tenant_id, user_id, role or None if invalid.
+    """
     if not token:
         return None
     session = get_session()
@@ -217,12 +247,20 @@ def validate_user_token(token: str) -> Optional[dict]:
             """),
             {"token": token, "now": datetime.utcnow()}
         ).fetchone()
+
         if not result:
             return None
+
         user_id, tenant_id, role, active, tenant_status = result
+
         if not active or tenant_status != "active":
             return None
-        return {"user_id": user_id, "tenant_id": tenant_id, "role": role}
+
+        return {
+            "user_id": user_id,
+            "tenant_id": tenant_id,
+            "role": role,
+        }
     except Exception as e:
         log.error("[DB] validate_user_token error: %s", e)
         return None

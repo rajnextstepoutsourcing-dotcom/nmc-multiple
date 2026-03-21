@@ -194,7 +194,7 @@ function collectItems(dirtyOnly=false) {
 function _showProgress(done,total,state,msg){
   const wrap=$("progressWrap"); if(!wrap) return;
   wrap.classList.remove("hidden");
-  setText("progressCount",`${done} of ${total} complete`);
+  setText("progressCount",`${done} / ${total} completed`);
   const pct=total>0?Math.round((done/total)*100):0;
   const bar=$("progressBar"); if(bar) bar.style.width=pct+"%";
   const pmsg=$("progressMsg"); if(pmsg&&msg) pmsg.textContent=msg;
@@ -241,8 +241,10 @@ function _clearDirtyFlags(){
 function updateBulkUIFromStatus(data, isRerun=false){
   const running=data.running||{};
   const done=running.done||0; const total=running.total||0;
+  const activeCount=data.running_count||0;
+  const queuedCount=data.queued_count||0;
   _showProgress(done,total,data.state||"running",data.message||"");
-  if(total) setText("runBulkStatus",`${done}/${total} complete`);
+  if(total) setText("runBulkStatus",`${done}/${total} completed • ${activeCount} running • ${queuedCount} queued`);
 
   (data.rows||[]).forEach((r,idx)=>{
     // For rerun: find row by row_number, not index
