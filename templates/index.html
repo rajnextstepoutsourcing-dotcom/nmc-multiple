@@ -15,13 +15,13 @@
         <span class="brand-sep">|</span>
         <span class="brand-tool">NMC Register Check</span>
       </div>
-      <a href="{{ dashboard_url if dashboard_url is defined else '{{ dashboard_url if dashboard_url is defined else 'https://nextstep-backend-e75l.onrender.com/dashboard' }}' }}" class="btn-back">← Dashboard</a>
+      <a href="{{ dashboard_url if dashboard_url is defined else '{{ dashboard_url if dashboard_url is defined else '{{ dashboard_url if dashboard_url is defined else 'https://nextstep-backend-e75l.onrender.com/dashboard' }}' }}' }}" class="btn-back">← Dashboard</a>
     </div>
 
     <!-- Auth warning (shown if not logged in) -->
     <div id="authWarning" class="auth-warning hidden">
       <span>⚠</span>
-      <span>You must be logged in to use this tool. <a href="{{ login_url if login_url is defined else '{{ login_url if login_url is defined else 'https://nextstep-backend-e75l.onrender.com/login' }}' }}">Log in here</a></span>
+      <span>You must be logged in to use this tool. <a href="{{ login_url if login_url is defined else '{{ login_url if login_url is defined else '{{ login_url if login_url is defined else 'https://nextstep-backend-e75l.onrender.com/login' }}' }}' }}">Log in here</a></span>
     </div>
 
     <!-- Token balance -->

@@ -148,7 +148,7 @@ def _get_ctx(request: Request):
 def _auth(request: Request):
     ctx = _get_ctx(request)
     if not ctx:
-        raise HTTPException(401, "f"Not authenticated. Please log in at {APP_LOGIN_URL}"")
+        raise HTTPException(status_code=401, detail=f"Not authenticated. Please log in at {APP_LOGIN_URL}")
     return ctx
 
 # ── Storage ───────────────────────────────────────────────────────────────────
