@@ -28,6 +28,7 @@ REDIS_URL     = os.environ.get("REDIS_URL", "redis://localhost:6379")
 NMC_QUEUE     = "nextstep:nmc:jobs"
 STORAGE_ROOT  = Path("/tmp/nextstep")
 STORAGE_ROOT.mkdir(parents=True, exist_ok=True)
+BACKEND_VALIDATE_URL = os.environ.get("BACKEND_VALIDATE_URL", "https://nextstep-backend-e75l.onrender.com/api/validate-session")
 
 app = FastAPI(title="NMC Check — NextStep")
 app.mount("/static", StaticFiles(directory=os.path.join(APP_DIR, "static")), name="static")
@@ -76,17 +77,49 @@ def _owner_get(job_id):
     except: return None
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
-def _get_ctx(request: Request):
-    token = (request.headers.get("X-NextStep-Token")
-             or request.cookies.get("ns_token")
-             or request.query_params.get("ns_token") or "")
+def _validate_via_backend(token: str):
     if not token:
         return None
+    try:
+        import requests
+        resp = requests.get(BACKEND_VALIDATE_URL, params={"token": token}, timeout=8)
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+        if not data.get("valid"):
+            return None
+        user = data.get("user") or {}
+        tenant = data.get("tenant") or {}
+        return {
+            "user_id": user.get("id"),
+            "tenant_id": tenant.get("id"),
+            "role": user.get("role", "admin"),
+            "email": user.get("email"),
+            "name": user.get("name"),
+        }
+    except Exception as e:
+        log.warning("[Auth backend] %s", e)
+        return None
+
+def _get_ctx(request: Request):
+    token = (
+        request.headers.get("X-NextStep-Token")
+        or request.cookies.get("ns_token")
+        or request.query_params.get("ns_token")
+        or ""
+    )
+    if not token:
+        return None
+
+    ctx = _validate_via_backend(token)
+    if ctx:
+        return ctx
+
     try:
         import db
         return db.validate_user_token(token)
     except Exception as e:
-        log.warning("[Auth] %s", e)
+        log.warning("[Auth db] %s", e)
         return None
 
 def _auth(request: Request):

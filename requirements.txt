@@ -17,3 +17,4 @@ redis==5.0.8
 rq==1.16.2
 psycopg2-binary==2.9.9
 SQLAlchemy==2.0.30
+requests>=2.31.0
